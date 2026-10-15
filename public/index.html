@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Valheim Manager</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 3 6 9v14l10 6 10-6V9z' fill='%23c8923c'/><path d='M16 9v14M11 12l5 3 5-3' stroke='%23161210' stroke-width='2.4' fill='none'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="rune">ᚢ</span> Valheim Manager</div>
+    <div class="topbar-meta" id="meta"></div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <button class="btn primary block" id="newBtn">+ New world server</button>
+      <ul class="server-list" id="serverList"></ul>
+      <p class="hint" id="emptyHint" hidden>No servers yet. Each world runs in its own container on its own UDP port range.</p>
+    </aside>
+
+    <main class="main" id="main">
+      <div class="placeholder" id="placeholder">
+        <div class="rune big">ᛟ</div>
+        <p>Select a server, or create a new one.</p>
+      </div>
+      <section id="detail" hidden></section>
+    </main>
+  </div>
+
+  <dialog id="newDialog">
+    <form method="dialog" id="newForm" class="form">
+      <h2>New world server</h2>
+      <div class="grid2">
+        <label>Server name <input name="serverName" required maxlength="64" placeholder="My Viking Server"></label>
+        <label>World name <input name="worldName" required pattern="[A-Za-z0-9_\- ]{1,40}" placeholder="Midgard"><small>Use an existing world's folder/file name to load it.</small></label>
+        <label>Password <input name="password" required minlength="5" type="text" autocomplete="off"><small>Min 5 chars, must not appear in the server name.</small></label>
+        <label>UDP start port <input name="port" type="number" min="1024" max="65000" required><small>Uses port, port+1, port+2.</small></label>
+        <label>Mod framework
+          <select name="modFramework">
+            <option value="none">Vanilla</option>
+            <option value="bepinex">BepInEx (Thunderstore mods)</option>
+            <option value="valheimplus">ValheimPlus</option>
+          </select>
+        </label>
+        <label>World preset <select name="preset" id="newPreset"></select></label>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" name="public"> List in public server browser</label>
+        <label><input type="checkbox" name="crossplay"> Crossplay (Xbox / Game Pass)</label>
+        <label><input type="checkbox" name="start" checked> Start right away</label>
+      </div>
+      <p class="error" id="newError"></p>
+      <div class="actions">
+        <button class="btn" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn primary" id="newSubmit" value="ok">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirmDialog">
+    <form method="dialog" class="form">
+      <h2 id="confirmTitle"></h2>
+      <p id="confirmBody"></p>
+      <div class="actions">
+        <button class="btn" value="cancel">Cancel</button>
+        <button class="btn danger" value="ok" id="confirmOk">Confirm</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toasts" id="toasts"></div>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

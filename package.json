@@ -1,0 +1,14 @@
+{
+  "name": "valheim-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Web UI to create, run and mod multiple Valheim dedicated servers on one host (one Docker container per world)",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "express": "^4.21.2"
+  }
+}
