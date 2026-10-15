@@ -18,3 +18,6 @@ world preset/modifiers/setkeys; upload existing worlds; per-world BepInEx/Valhei
 Thunderstore (with dependencies), manual .dll/.zip upload, mod config editor; live logs and CPU/memory.
 
 Data per server: `data/servers/<id>/{server.json,server.env,config/,data/}`.
+
+Run it in the background as a systemd user service: see `contrib/valheim-manager.service`.
+Game servers themselves keep running without the manager (`--restart unless-stopped`).

@@ -1,0 +1,16 @@
+# systemd user unit. Install:
+#   cp contrib/valheim-manager.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now valheim-manager
+#   loginctl enable-linger $USER   # keep it running while logged out
+[Unit]
+Description=Valheim Manager web UI
+After=network-online.target docker.service
+
+[Service]
+WorkingDirectory=%h/repos/valheim-manager
+ExecStart=/usr/bin/env node server.js
+Environment=PORT=8790 HOST=127.0.0.1
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
