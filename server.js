@@ -8,6 +8,7 @@ import * as docker from './lib/docker.js';
 import * as mods from './lib/mods.js';
 import * as auth from './lib/auth.js';
 import * as tailscale from './lib/tailscale.js';
+import * as apikeys from './lib/apikeys.js';
 import { ENV_CATALOG, WORLD_PRESETS, WORLD_MODIFIERS, WORLD_KEYS } from './lib/envcatalog.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -25,6 +26,7 @@ app.post('/api/auth/login', (req, res, next) => auth.login(req, res).catch(next)
 app.post('/api/auth/logout', auth.logout);
 app.use('/api', auth.requireAuth);
 app.post('/api/auth/password', (req, res, next) => auth.changePassword(req, res).catch(next));
+
 
 // --- helpers ---------------------------------------------------------------
 
@@ -47,8 +49,12 @@ function runJob(id, action, fn) {
   if (jobs.has(id)) throw fail(409, `Busy: ${jobs.get(id).action} in progress`);
   jobs.set(id, { action, since: Date.now() });
   lastError.delete(id);
-  withLock(id, fn)
-    .catch((e) => lastError.set(id, { action, message: e.message, at: Date.now() }))
+  // resolves to null on success or the error message, never rejects
+  return withLock(id, fn)
+    .then(() => null, (e) => {
+      lastError.set(id, { action, message: e.message, at: Date.now() });
+      return e.message;
+    })
     .finally(() => jobs.delete(id));
 }
 
@@ -155,8 +161,8 @@ function applyFields(target, body, servers) {
 }
 
 // Make sure the container matches the current definition, recreating it if not.
-async function ensureContainer(s, st) {
-  if (st && st.hash === docker.runHash(s)) return;
+async function ensureContainer(s, st, force = false) {
+  if (st && !force && st.hash === docker.runHash(s)) return;
   if (st) {
     if (st.state === 'running') await docker.stop(s.id);
     await docker.removeContainer(s.id);
@@ -244,11 +250,12 @@ app.put('/api/servers/:id', wrap(async (req, res) => {
   res.json(publicView(out, status[out.id]));
 }));
 
-app.post('/api/servers/:id/:action(start|stop|restart)', wrap(async (req, res) => {
-  const { id, action } = req.params;
-  const s = await load(id);
-  const labels = { start: 'starting', stop: 'stopping', restart: 'restarting' };
-  runJob(id, labels[action], async () => {
+// start | stop | restart | reload. Runs in the background; returns the job promise.
+//  restart: re-creates the container only if settings changed, else docker restart
+//  reload:  always re-creates it, re-applying settings and re-syncing mods, then starts
+const ACTION_LABELS = { start: 'starting', stop: 'stopping', restart: 'restarting', reload: 'reloading' };
+function serverAction(id, action) {
+  return runJob(id, ACTION_LABELS[action], async () => {
     const fresh = await load(id);
     const st = (await docker.statusAll())[id];
     if (action === 'stop') {
@@ -256,8 +263,8 @@ app.post('/api/servers/:id/:action(start|stop|restart)', wrap(async (req, res) =
       return;
     }
     const pending = !st || st.hash !== docker.runHash(fresh);
-    if (pending) {
-      await ensureContainer(fresh, st); // stops + recreates if needed
+    if (pending || action === 'reload') {
+      await ensureContainer(fresh, st, action === 'reload'); // stops + recreates
       await docker.start(id);
     } else if (action === 'restart' && st.state === 'running') {
       await docker.restart(id);
@@ -265,6 +272,12 @@ app.post('/api/servers/:id/:action(start|stop|restart)', wrap(async (req, res) =
       await docker.start(id);
     }
   });
+}
+
+app.post('/api/servers/:id/:action(start|stop|restart|reload)', wrap(async (req, res) => {
+  const { id, action } = req.params;
+  const s = await load(id);
+  serverAction(id, action);
   res.status(202).json({ ok: true, id: s.id });
 }));
 
@@ -415,6 +428,61 @@ app.put('/api/servers/:id/configs/:name', express.text({ type: '*/*', limit: '4m
   const s = await load(req.params.id);
   await mods.writeConfig(s, req.params.name, String(req.body ?? ''));
   res.json({ ok: true, restartRequired: true });
+}));
+
+// --- API keys (logged-in only) ---
+app.get('/api/keys', wrap(async (req, res) => res.json(await apikeys.list())));
+app.post('/api/keys', wrap(async (req, res) => res.status(201).json(await apikeys.create(req.body || {}))));
+app.delete('/api/keys/:id', wrap(async (req, res) => { await apikeys.revoke(req.params.id); res.json({ ok: true }); }));
+
+// --- hook URLs (secret key, no login) ---------------------------------------
+// GET or POST /hook/<server>/<status|start|stop|shutdown|restart|reload>
+// key via `Authorization: Bearer <key>`, `X-API-Key: <key>` or `?key=<key>`.
+// `?wait=1` blocks until the action finishes (max 5 min) and reports the result.
+const hookFailures = new Map(); // ip -> { count, resetAt }
+app.all('/hook/:id/:action', express.json({ limit: '1kb' }), wrap(async (req, res) => {
+  if (!['GET', 'POST'].includes(req.method)) throw fail(405, 'Use GET or POST');
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress).split(',')[0].trim();
+  const f = hookFailures.get(ip);
+  if (f && f.resetAt > Date.now() && f.count >= 20) throw fail(429, 'Too many bad keys — try again later');
+
+  const action = req.params.action === 'shutdown' ? 'stop' : req.params.action;
+  if (!apikeys.ACTIONS.includes(action)) throw fail(404, `Unknown action; use ${apikeys.ACTIONS.join(', ')} (or shutdown)`);
+  const bearer = (req.headers.authorization || '').match(/^Bearer\s+(\S+)$/i)?.[1];
+  const secret = bearer || req.headers['x-api-key'] || req.query.key || req.body?.key;
+  const verdict = await apikeys.check(String(secret || ''), req.params.id, action);
+  if (!verdict.ok) {
+    if (verdict.status === 401) {
+      const now = Date.now();
+      if (!f || f.resetAt < now) hookFailures.set(ip, { count: 1, resetAt: now + 15 * 60_000 });
+      else f.count++;
+    }
+    throw fail(verdict.status, verdict.error || 'Missing or invalid key');
+  }
+
+  const s = await load(req.params.id);
+  const describe = async () => {
+    const st = (await docker.statusAll())[s.id];
+    return {
+      server: s.id,
+      name: s.serverName,
+      world: s.worldName,
+      port: s.port,
+      state: st?.state || 'not created',
+      busy: jobs.get(s.id)?.action || null,
+      pendingChanges: st ? st.hash !== docker.runHash(await load(s.id)) : false,
+      lastError: lastError.get(s.id)?.message || null,
+    };
+  };
+  if (action === 'status') return res.json(await describe());
+
+  const job = serverAction(s.id, action);
+  if (req.query.wait === '1' || req.body?.wait) {
+    const error = await Promise.race([job, new Promise((r) => setTimeout(() => r('timeout'), 300_000))]);
+    if (error === 'timeout') return res.status(202).json({ ok: true, action, note: 'still running', ...(await describe()) });
+    return res.status(error ? 500 : 200).json({ ok: !error, action, error, ...(await describe()) });
+  }
+  res.status(202).json({ ok: true, action, ...(await describe()) });
 }));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));

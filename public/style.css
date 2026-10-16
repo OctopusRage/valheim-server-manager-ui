@@ -147,3 +147,10 @@ dialog h2 { margin: 0 0 16px; font-size: 18px; }
   .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
   .main { padding: 16px; }
 }
+
+dialog.wide { width: min(860px, 96vw); }
+.secret { display: flex; gap: 8px; align-items: center; }
+.secret code { flex: 1; background: var(--bg); border: 1px solid var(--accent); border-radius: 6px; padding: 8px 10px; color: var(--accent); word-break: break-all; }
+pre.snippet { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; margin: 6px 0 0; white-space: pre; }
+.hooks td:first-child { white-space: nowrap; width: 1%; }
+.hooks code { word-break: break-all; }

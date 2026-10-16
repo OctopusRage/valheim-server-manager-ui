@@ -13,6 +13,7 @@
     <div class="topbar-right">
       <div class="topbar-meta" id="meta"></div>
       <div class="row" id="userMenu" hidden>
+        <button class="btn small" id="keysBtn">API keys</button>
         <button class="btn small" id="pwBtn">Change password</button>
         <button class="btn small" id="logoutBtn">Log out</button>
       </div>
@@ -80,6 +81,32 @@
         <button class="btn primary" id="authSubmit">Log in</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="keysDialog" class="wide">
+    <div class="form">
+      <h2>API keys</h2>
+      <p class="hint">Keys let scripts, bots or phone shortcuts call the hook URLs
+        (<code>/hook/&lt;server&gt;/start|stop|restart|reload|status</code>) without logging in.
+        Only a hash is stored, so the key is shown <b>once</b>.</p>
+      <div id="keyList"></div>
+
+      <form id="keyForm" class="card" style="margin-top:14px">
+        <h3>New key</h3>
+        <div class="grid2">
+          <label>Name <input name="name" required maxlength="60" placeholder="discord-bot"></label>
+          <label>Servers
+            <select name="scope"><option value="all">All servers (incl. future ones)</option><option value="some">Only selected…</option></select>
+          </label>
+        </div>
+        <div class="checks" id="keyServers" hidden></div>
+        <div class="checks" id="keyActions"></div>
+        <div class="actions"><button class="btn primary">Create key</button></div>
+      </form>
+
+      <div id="keyCreated" class="card" hidden></div>
+      <div class="actions"><button class="btn" id="keysClose" type="button">Close</button></div>
+    </div>
   </dialog>
 
   <dialog id="confirmDialog">

@@ -18,6 +18,9 @@ Env: `PORT` (8790), `HOST` (127.0.0.1), `DATA_DIR` (./data), `VALHEIM_IMAGE`, `V
 
 **Playing with friends / remote access:** see [docs/TAILSCALE.md](docs/TAILSCALE.md).
 
+**Hook URLs:** to start, stop/shutdown, restart, reload or get status with a secret key (no login),
+use `/hook/<server>/<action>`. Create keys under **API keys** in the UI. See [docs/API.md](docs/API.md).
+
 Features: create/start/stop/restart/delete servers; edit settings and container env vars
 (changes apply on next start/restart, which re-creates the container and keeps the data);
 world preset/modifiers/setkeys; upload existing worlds; per-world BepInEx/ValheimPlus mods from

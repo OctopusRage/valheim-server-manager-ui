@@ -139,6 +139,10 @@ function connectAddress(s) {
   return s.port === 2456 ? ip : `${ip}:${s.port}`;
 }
 
+function hookUrl(id, action) {
+  return `${location.origin}/hook/${id}/${action}`;
+}
+
 function tsAddress(s) {
   const ip = state.meta.tailscale.ip;
   return s.port === 2456 ? ip : `${ip}:${s.port}`;
@@ -158,6 +162,7 @@ function renderHead(s) {
       <div class="controls">
         <button class="btn primary" data-act="start" ${busy || running ? 'disabled' : ''}>▶ Start</button>
         <button class="btn" data-act="restart" ${busy || !running ? 'disabled' : ''}>↻ Restart</button>
+        <button class="btn" data-act="reload" ${busy || !s.container ? 'disabled' : ''} title="Re-create the container: re-applies settings and re-syncs mods, then starts">⟳ Reload mods &amp; settings</button>
         <button class="btn" data-act="stop" ${busy || !running ? 'disabled' : ''}>■ Stop</button>
       </div>
     </div>
@@ -254,6 +259,21 @@ function tabSettings(s, body) {
       </div>
       <div class="actions"><button class="btn primary">Save variables</button></div>
     </form>
+
+    <div class="card">
+      <h3>Hook URLs <small>— call with an API key (header or <code>?key=</code>); create keys under <b>API keys</b> at the top</small></h3>
+      <table class="hooks"><tbody>
+        ${[['status', 'JSON status'], ['start', 'Start'], ['stop', 'Shut down (alias: shutdown)'], ['restart', 'Restart (applies pending changes)'], ['reload', 'Reload mods & settings (always re-creates)']]
+          .map(([a, l]) => `<tr><td>${l}</td><td><code>${esc(hookUrl(s.id, a))}</code></td><td><button type="button" class="btn small" data-copy="${esc(hookUrl(s.id, a))}">Copy</button></td></tr>`).join('')}
+      </tbody></table>
+      <pre class="snippet">${esc(`curl -X POST -H "Authorization: Bearer $VHM_KEY" ${hookUrl(s.id, 'restart')}
+
+# or a plain link (browser, phone shortcut) — the key ends up in history/logs:
+${hookUrl(s.id, 'restart')}?key=vhm_xxx
+
+# wait for the result instead of returning immediately:
+curl -X POST -H "X-API-Key: $VHM_KEY" "${hookUrl(s.id, 'reload')}?wait=1"`)}</pre>
+    </div>
 
     <div class="card">
       <h3>Danger zone</h3>
@@ -747,6 +767,74 @@ $('#logoutBtn').addEventListener('click', async () => {
   location.reload();
 });
 $('#pwBtn').addEventListener('click', () => showAuth('password'));
+
+// --- API keys --------------------------------------------------------------
+
+const KEY_ACTIONS = [['status', 'status'], ['start', 'start'], ['stop', 'stop / shutdown'], ['restart', 'restart'], ['reload', 'reload']];
+
+async function loadKeys() {
+  const keys = await api('GET', '/api/keys');
+  const name = (id) => state.servers.find((x) => x.id === id)?.serverName || id;
+  $('#keyList').innerHTML = keys.length ? `<table><thead><tr><th>Name</th><th>Key</th><th>Servers</th><th>Actions</th><th>Last used</th><th></th></tr></thead><tbody>
+    ${keys.map((k) => `<tr>
+      <td>${esc(k.name)}</td>
+      <td><code>${esc(k.prefix)}…</code></td>
+      <td>${k.servers.length ? k.servers.map((id) => esc(name(id))).join(', ') : 'all'}</td>
+      <td>${k.actions.map(esc).join(', ')}</td>
+      <td class="num">${k.lastUsedAt ? fmtDate(k.lastUsedAt) : 'never'}</td>
+      <td><button class="btn small danger" data-revoke="${esc(k.id)}" data-name="${esc(k.name)}">Revoke</button></td>
+    </tr>`).join('')}</tbody></table>` : '<p class="hint">No keys yet.</p>';
+}
+
+$('#keysBtn').addEventListener('click', async () => {
+  const f = $('#keyForm');
+  f.reset();
+  $('#keyServers').hidden = true;
+  $('#keyServers').innerHTML = state.servers.map((s) => `<label><input type="checkbox" name="srv" value="${esc(s.id)}" ${s.id === state.selected ? 'checked' : ''}> ${esc(s.serverName)}</label>`).join('') || '<span class="hint">No servers yet.</span>';
+  $('#keyActions').innerHTML = KEY_ACTIONS.map(([v, l]) => `<label><input type="checkbox" name="act" value="${v}" checked> ${l}</label>`).join('');
+  $('#keyCreated').hidden = true;
+  $('#keysDialog').showModal();
+  loadKeys().catch((e) => toast(e.message, 'err'));
+});
+$('#keysClose').addEventListener('click', () => $('#keysDialog').close());
+$('#keyForm').scope.addEventListener('change', (e) => { $('#keyServers').hidden = e.target.value !== 'some'; });
+
+$('#keyForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const servers = f.scope.value === 'some' ? [...f.querySelectorAll('[name=srv]:checked')].map((i) => i.value) : [];
+  if (f.scope.value === 'some' && !servers.length) return toast('Select at least one server', 'err');
+  try {
+    const k = await api('POST', '/api/keys', {
+      name: f.name.value,
+      servers,
+      actions: [...f.querySelectorAll('[name=act]:checked')].map((i) => i.value),
+    });
+    const sample = servers[0] || state.selected || state.servers[0]?.id || '<server>';
+    const box = $('#keyCreated');
+    box.hidden = false;
+    box.innerHTML = `<h3>Key “${esc(k.name)}” created — copy it now, it won't be shown again</h3>
+      <div class="secret"><code>${esc(k.secret)}</code><button class="btn small primary" data-copy="${esc(k.secret)}">Copy</button></div>
+      <pre class="snippet">${esc(`curl -X POST -H "Authorization: Bearer ${k.secret}" ${hookUrl(sample, 'restart')}
+${hookUrl(sample, 'status')}?key=${k.secret}`)}</pre>`;
+    f.reset();
+    $('#keyServers').hidden = true;
+    loadKeys();
+  } catch (err) { toast(err.message, 'err'); }
+});
+
+$('#keysDialog').addEventListener('click', async (e) => {
+  const copy = e.target.closest('[data-copy]');
+  if (copy) {
+    await navigator.clipboard?.writeText(copy.dataset.copy).catch(() => {});
+    return toast('Copied');
+  }
+  const rv = e.target.closest('[data-revoke]');
+  if (!rv) return;
+  if (!confirm(`Revoke key "${rv.dataset.name}"? Anything using it stops working.`)) return;
+  try { await api('DELETE', `/api/keys/${rv.dataset.revoke}`); toast('Key revoked', 'ok'); loadKeys(); }
+  catch (err) { toast(err.message, 'err'); }
+});
 
 // --- boot ------------------------------------------------------------------
 
