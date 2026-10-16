@@ -10,7 +10,13 @@
 <body>
   <header class="topbar">
     <div class="brand"><span class="rune">ᚢ</span> Valheim Manager</div>
-    <div class="topbar-meta" id="meta"></div>
+    <div class="topbar-right">
+      <div class="topbar-meta" id="meta"></div>
+      <div class="row" id="userMenu" hidden>
+        <button class="btn small" id="pwBtn">Change password</button>
+        <button class="btn small" id="logoutBtn">Log out</button>
+      </div>
+    </div>
   </header>
 
   <div class="layout">
@@ -55,6 +61,23 @@
       <div class="actions">
         <button class="btn" value="cancel" formnovalidate>Cancel</button>
         <button class="btn primary" id="newSubmit" value="ok">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="authDialog">
+    <form class="form" id="authForm">
+      <h2 id="authTitle">Log in</h2>
+      <p class="hint" id="authHint"></p>
+      <div id="authFields">
+        <label id="currentWrap" hidden>Current password <input name="current" type="password" autocomplete="current-password"></label>
+        <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+        <label id="confirmWrap" hidden>Repeat password <input name="confirm" type="password" autocomplete="new-password"></label>
+      </div>
+      <p class="error" id="authError"></p>
+      <div class="actions">
+        <button class="btn" type="button" id="authCancel" hidden>Cancel</button>
+        <button class="btn primary" id="authSubmit">Log in</button>
       </div>
     </form>
   </dialog>

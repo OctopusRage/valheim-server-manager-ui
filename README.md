@@ -9,8 +9,14 @@ npm install
 npm start            # http://127.0.0.1:8790
 ```
 
-Env: `PORT` (8790), `HOST` (127.0.0.1; it controls Docker, so keep it local or put auth in front),
-`DATA_DIR` (./data), `VALHEIM_IMAGE`.
+On first visit from the host itself you set an admin password (min 8 chars). Every API call
+needs a login after that. You can also set or reset the password with `npm run set-password`,
+or supply it with `VHM_PASSWORD`. Sessions last 30 days. Logins are limited to 10 failed
+attempts per 15 minutes per IP.
+
+Env: `PORT` (8790), `HOST` (127.0.0.1), `DATA_DIR` (./data), `VALHEIM_IMAGE`, `VHM_PASSWORD`.
+
+**Playing with friends / remote access:** see [docs/TAILSCALE.md](docs/TAILSCALE.md).
 
 Features: create/start/stop/restart/delete servers; edit settings and container env vars
 (changes apply on next start/restart, which re-creates the container and keeps the data);

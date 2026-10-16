@@ -6,6 +6,8 @@ import AdmZip from 'adm-zip';
 import * as store from './lib/store.js';
 import * as docker from './lib/docker.js';
 import * as mods from './lib/mods.js';
+import * as auth from './lib/auth.js';
+import * as tailscale from './lib/tailscale.js';
 import { ENV_CATALOG, WORLD_PRESETS, WORLD_MODIFIERS, WORLD_KEYS } from './lib/envcatalog.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -15,6 +17,14 @@ const BASE_GAME_PORT = 2456;
 const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(import.meta.dirname, 'public')));
+
+app.use('/api', auth.sameOrigin);
+app.get('/api/auth/status', (req, res, next) => auth.status(req, res).catch(next));
+app.post('/api/auth/setup', (req, res, next) => auth.setup(req, res).catch(next));
+app.post('/api/auth/login', (req, res, next) => auth.login(req, res).catch(next));
+app.post('/api/auth/logout', auth.logout);
+app.use('/api', auth.requireAuth);
+app.post('/api/auth/password', (req, res, next) => auth.changePassword(req, res).catch(next));
 
 // --- helpers ---------------------------------------------------------------
 
@@ -161,7 +171,7 @@ async function ensureContainer(s, st) {
 app.get('/api/meta', wrap(async (req, res) => {
   const servers = await store.list();
   const ips = Object.values(os.networkInterfaces()).flat()
-    .filter((i) => i && i.family === 'IPv4' && !i.internal && !/^(172\.(1[7-9]|2\d|3[01])|10\.88)\./.test(i.address))
+    .filter((i) => i && i.family === 'IPv4' && !i.internal && !/^(172\.(1[7-9]|2\d|3[01])|10\.88)\./.test(i.address) && !tailscale.isTailscaleIp(i.address))
     .map((i) => i.address);
   res.json({
     image: docker.IMAGE,
@@ -173,6 +183,7 @@ app.get('/api/meta', wrap(async (req, res) => {
     suggestedPort: await suggestPort(servers),
     hostIps: ips,
     hostname: os.hostname(),
+    tailscale: await tailscale.info(),
   });
 }));
 

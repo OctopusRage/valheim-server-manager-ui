@@ -32,6 +32,10 @@ async function api(method, url, body, { raw = false, text = false } = {}) {
   const res = await fetch(url, opts);
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('json') ? await res.json() : await res.text();
+  if (res.status === 401 && data?.auth) {
+    showAuth('login');
+    throw new Error('Login required');
+  }
   if (!res.ok) throw new Error(data?.error || data || res.statusText);
   return data;
 }
@@ -131,7 +135,12 @@ function renderDetail(force = false) {
 }
 
 function connectAddress(s) {
-  const ip = state.meta?.hostIps?.[0] || 'localhost';
+  const ip = state.meta?.hostIps?.[0] || state.meta?.tailscale?.ip || 'localhost';
+  return s.port === 2456 ? ip : `${ip}:${s.port}`;
+}
+
+function tsAddress(s) {
+  const ip = state.meta.tailscale.ip;
   return s.port === 2456 ? ip : `${ip}:${s.port}`;
 }
 
@@ -162,6 +171,7 @@ function renderHead(s) {
       <div class="stat"><div class="k">Visibility</div><div class="v">${s.public ? 'Public' : 'Private'}${s.crossplay ? ' · Crossplay' : ''}</div></div>
       <div class="stat"><div class="k">Mods</div><div class="v">${{ none: 'Vanilla', bepinex: 'BepInEx', valheimplus: 'ValheimPlus' }[s.modFramework]}${s.modFramework !== 'none' ? ` · ${Object.keys(s.mods || {}).length}` : ''}</div></div>
       <div class="stat"><div class="k">CPU / Memory</div><div class="v">${s.stats ? `${esc(s.stats.cpu)} · ${esc(s.stats.mem.split(' / ')[0])}` : '—'}</div></div>
+      ${state.meta?.tailscale?.ip ? `<div class="stat"><div class="k">Via Tailscale</div><div class="v"><span class="copy" data-copy="${esc(tsAddress(s))}" title="Click to copy">${esc(tsAddress(s))}</span></div></div>` : ''}
       ${ips.length > 1 ? `<div class="stat"><div class="k">Other host IPs</div><div class="v">${ips.slice(1).map(esc).join(', ')}</div></div>` : ''}
     </div>`;
 }
@@ -685,9 +695,78 @@ $('#newForm').addEventListener('submit', async (e) => {
   }
 });
 
+// --- auth ------------------------------------------------------------------
+
+let authMode = 'login';
+function showAuth(mode, hint = '') {
+  const d = $('#authDialog');
+  if (d.open && authMode === mode) return; // polling hits 401 repeatedly; don't wipe the form
+  authMode = mode;
+  const f = $('#authForm');
+  f.reset();
+  const titles = { login: 'Log in', setup: 'Set an admin password', password: 'Change password', blocked: 'Not set up yet' };
+  $('#authTitle').textContent = titles[mode];
+  $('#authHint').textContent = hint;
+  $('#authError').textContent = '';
+  $('#authFields').hidden = mode === 'blocked';
+  $('#currentWrap').hidden = mode !== 'password';
+  $('#confirmWrap').hidden = mode === 'login';
+  f.current.required = mode === 'password';
+  f.confirm.required = mode === 'setup' || mode === 'password';
+  f.password.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  $('#authSubmit').hidden = mode === 'blocked';
+  $('#authSubmit').textContent = mode === 'login' ? 'Log in' : 'Save password';
+  $('#authCancel').hidden = mode !== 'password';
+  if (!d.open) d.showModal();
+}
+
+// Escape must not dismiss the login screen.
+$('#authDialog').addEventListener('cancel', (e) => { if (authMode !== 'password') e.preventDefault(); });
+$('#authCancel').addEventListener('click', () => $('#authDialog').close());
+
+$('#authForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  if (authMode !== 'login' && f.get('password') !== f.get('confirm')) {
+    $('#authError').textContent = 'Passwords do not match';
+    return;
+  }
+  const url = { login: '/api/auth/login', setup: '/api/auth/setup', password: '/api/auth/password' }[authMode];
+  try {
+    await api('POST', url, { password: f.get('password'), current: f.get('current') || undefined });
+    $('#authDialog').close();
+    if (authMode === 'password') return toast('Password changed', 'ok');
+    start();
+  } catch (err) {
+    $('#authError').textContent = err.message;
+  }
+});
+
+$('#logoutBtn').addEventListener('click', async () => {
+  await api('POST', '/api/auth/logout').catch(() => {});
+  location.reload();
+});
+$('#pwBtn').addEventListener('click', () => showAuth('password'));
+
 // --- boot ------------------------------------------------------------------
 
+let started = false;
 async function boot() {
+  const st = await api('GET', '/api/auth/status').catch((e) => { toast(`Backend unreachable: ${e.message}`, 'err'); return null; });
+  if (!st) return;
+  if (!st.configured) {
+    return st.canSetup
+      ? showAuth('setup', `First run: choose the password that protects this manager (min ${st.minLength} characters).`)
+      : showAuth('blocked', 'No admin password has been set. Open the manager on the host itself (http://127.0.0.1:8790) to set one.');
+  }
+  if (!st.authenticated) return showAuth('login');
+  start();
+}
+
+async function start() {
+  if (started) return;
+  started = true;
+  $('#userMenu').hidden = false;
   try {
     state.meta = await api('GET', '/api/meta');
   } catch (e) {
@@ -696,6 +775,7 @@ async function boot() {
   }
   $('#meta').innerHTML = `<span>Image: <code>${esc(state.meta.image.replace(/^ghcr\.io\//, ''))}</code> ${state.meta.imagePresent ? '' : '(pulled on first start)'}</span>
     <span>Host: ${esc(state.meta.hostIps.join(', ') || state.meta.hostname)}</span>`;
+  if (state.meta.tailscale) $('#meta').insertAdjacentHTML('beforeend', `<span>Tailscale: ${esc(state.meta.tailscale.dnsName || state.meta.tailscale.ip)}</span>`);
   await refresh();
   setInterval(refresh, 3000);
 }

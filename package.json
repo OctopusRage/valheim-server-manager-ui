@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Web UI to create, run and mod multiple Valheim dedicated servers on one host (one Docker container per world)",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "set-password": "node set-password.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",

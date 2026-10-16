@@ -14,6 +14,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -28,6 +29,9 @@ code, pre, textarea.code { font-family: ui-monospace, "JetBrains Mono", Menlo, m
 .brand { font-weight: 700; font-size: 17px; letter-spacing: .3px; }
 .rune { color: var(--accent); }
 .rune.big { font-size: 64px; line-height: 1; }
+.topbar-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: flex-end; }
+#authDialog { width: min(420px, 94vw); }
+#authFields { display: grid; gap: 12px; }
 .topbar-meta { color: var(--muted); font-size: 12.5px; display: flex; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
 
 .layout { display: grid; grid-template-columns: 290px 1fr; min-height: calc(100vh - 51px); }
