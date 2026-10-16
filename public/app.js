@@ -175,6 +175,7 @@ function renderHead(s) {
       <div class="stat"><div class="k">UDP ports</div><div class="v">${s.port}–${s.port + 2}</div></div>
       <div class="stat"><div class="k">Visibility</div><div class="v">${s.public ? 'Public' : 'Private'}${s.crossplay ? ' · Crossplay' : ''}</div></div>
       <div class="stat"><div class="k">Mods</div><div class="v">${{ none: 'Vanilla', bepinex: 'BepInEx', valheimplus: 'ValheimPlus' }[s.modFramework]}${s.modFramework !== 'none' ? ` · ${Object.keys(s.mods || {}).length}` : ''}</div></div>
+      <div class="stat"><div class="k">Map seed</div><div class="v">${s.seed ? `<span class="copy" data-copy="${esc(s.seed.name)}" title="Click to copy">${esc(s.seed.name)}</span> <a class="seed-map" href="https://valheim-map.world/?seed=${encodeURIComponent(s.seed.name)}" target="_blank" rel="noopener" title="Open on valheim-map.world">map ↗</a>` : '<span class="muted-v" title="The world file is created on first start">not generated yet</span>'}</div></div>
       <div class="stat"><div class="k">CPU / Memory</div><div class="v">${s.stats ? `${esc(s.stats.cpu)} · ${esc(s.stats.mem.split(' / ')[0])}` : '—'}</div></div>
       ${state.meta?.tailscale?.ip ? `<div class="stat"><div class="k">Via Tailscale</div><div class="v"><span class="copy" data-copy="${esc(tsAddress(s))}" title="Click to copy">${esc(tsAddress(s))}</span></div></div>` : ''}
       ${ips.length > 1 ? `<div class="stat"><div class="k">Other host IPs</div><div class="v">${ips.slice(1).map(esc).join(', ')}</div></div>` : ''}

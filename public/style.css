@@ -173,3 +173,6 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .codebox { position: relative; }
 .codebox pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; margin: 8px 0; }
 .codebox .btn { position: absolute; top: 8px; right: 8px; }
+
+.seed-map { font-size: 12.5px; font-weight: 400; margin-left: 6px; }
+.muted-v { color: var(--muted); font-weight: 400; font-size: 13px; }

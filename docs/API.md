@@ -26,7 +26,7 @@ Every server's **Settings** tab lists its exact URLs, with copy buttons.
 
 | Action     | What it does |
 | ---------- | ------------ |
-| `status`   | Returns JSON: state, busy, pending changes, last error. Changes nothing. |
+| `status`   | Returns JSON: state, busy, pending changes, last error, map seed. Changes nothing. |
 | `start`    | Starts the server. If settings changed since the container was made, it is re-created first. |
 | `stop`     | Graceful shutdown: the world is saved (up to 120 s). `shutdown` is an alias. |
 | `restart`  | Restarts the server. Re-creates the container if settings changed. Mods are re-synced on every start. |
@@ -64,7 +64,7 @@ A browser bookmark or phone shortcut can be a plain link:
 ```json
 { "ok": true, "action": "restart", "server": "midgard", "name": "My Server",
   "world": "Midgard", "port": 2456, "state": "running", "busy": "restarting",
-  "pendingChanges": false, "lastError": null }
+  "pendingChanges": false, "lastError": null, "seed": "xPzFk3gw9f" }
 ```
 
 | Status | Meaning |

@@ -11,6 +11,7 @@ import * as tailscale from './lib/tailscale.js';
 import * as apikeys from './lib/apikeys.js';
 import * as modpack from './lib/modpack.js';
 import { sharePage } from './lib/sharepage.js';
+import { worldInfo } from './lib/worldinfo.js';
 import { ENV_CATALOG, WORLD_PRESETS, WORLD_MODIFIERS, WORLD_KEYS } from './lib/envcatalog.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -66,7 +67,9 @@ async function load(id) {
   return s;
 }
 
-function publicView(s, st, statsById = {}) {
+const seedOf = (s) => worldInfo(path.join(store.configDir(s.id), 'worlds_local'), s.worldName).catch(() => null);
+
+function publicView(s, st, statsById = {}, seed = null) {
   const { password, ...rest } = s;
   return {
     ...rest,
@@ -77,6 +80,7 @@ function publicView(s, st, statsById = {}) {
     busy: jobs.get(s.id) || null,
     lastError: lastError.get(s.id) || null,
     stats: statsById[s.id] || null,
+    seed: seed && { name: seed.seedName, value: seed.seed },
   };
 }
 
@@ -199,13 +203,14 @@ app.get('/api/servers', wrap(async (req, res) => {
   const [servers, status] = await Promise.all([store.list(), docker.statusAll()]);
   const running = servers.filter((s) => status[s.id]?.state === 'running').map((s) => s.id);
   const st = req.query.stats ? await docker.stats(running).catch(() => ({})) : {};
-  res.json(servers.map((s) => publicView(s, status[s.id], st)));
+  const seeds = await Promise.all(servers.map(seedOf));
+  res.json(servers.map((s, i) => publicView(s, status[s.id], st, seeds[i])));
 }));
 
 app.get('/api/servers/:id', wrap(async (req, res) => {
   const s = await load(req.params.id);
   const status = await docker.statusAll();
-  res.json(publicView(s, status[s.id]));
+  res.json(publicView(s, status[s.id], {}, await seedOf(s)));
 }));
 
 app.post('/api/servers', wrap(async (req, res) => {
@@ -511,6 +516,7 @@ app.all('/hook/:id/:action', express.json({ limit: '1kb' }), wrap(async (req, re
       busy: jobs.get(s.id)?.action || null,
       pendingChanges: st ? st.hash !== docker.runHash(await load(s.id)) : false,
       lastError: lastError.get(s.id)?.message || null,
+      seed: (await seedOf(s))?.seedName || null,
     };
   };
   if (action === 'status') return res.json(await describe());
