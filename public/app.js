@@ -439,6 +439,18 @@ async function tabWorld(s, body) {
     </form>
 
     <div class="card">
+      <h3>Map seed</h3>
+      ${s.seed ? `<p><b class="copy" data-copy="${esc(s.seed.name)}" title="Click to copy">${esc(s.seed.name)}</b>
+        <a class="seed-map" href="https://www.valheim.tools/seed-map?seed=${encodeURIComponent(s.seed.name)}" target="_blank" rel="noopener">map ↗</a></p>` : ''}
+      ${s.seed?.generated ? `<p class="hint">The seed is fixed once the world exists. To play another seed, use a new world name (Settings) and set its seed here before the first start.</p>` : `
+        <form class="row" id="seedForm">
+          <input name="seed" maxlength="10" pattern="[A-Za-z0-9]{1,10}" required placeholder="e.g. HHcLC5acQt" autocomplete="off">
+          <button class="btn primary">${s.seed ? 'Change seed' : 'Set seed'}</button>
+        </form>
+        <p class="hint">World <b>${esc(s.worldName)}</b> hasn't been generated yet. ${s.seed ? 'It will be generated from this seed on first start; you can still change it until then.' : 'Set a seed now, or leave it and the first start picks a random one.'}</p>`}
+    </div>
+
+    <div class="card">
       <h3>World files <small>— <code>config/worlds_local</code></small></h3>
       <div id="worldFiles" class="hint">Loading…</div>
       <div class="row" style="margin-top:12px">
@@ -452,6 +464,14 @@ async function tabWorld(s, body) {
       <h3>Backups <small>— <code>config/backups</code></small></h3>
       <div id="backupFiles" class="hint">Loading…</div>
     </div>`;
+
+  $('#seedForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await api('PUT', `/api/servers/${s.id}/seed`, { seed: new FormData(e.target).get('seed').trim() });
+      await savedAndReload('Seed set — the world is generated from it on first start');
+    } catch (err) { toast(err.message, 'err'); }
+  });
 
   const form = $('#worldForm');
   const collect = () => {
@@ -762,6 +782,7 @@ $('#newForm').addEventListener('submit', async (e) => {
     port: Number(f.get('port')), modFramework: f.get('modFramework'),
     public: f.has('public'), crossplay: f.has('crossplay'), start: f.has('start'),
     world: { preset: f.get('preset'), modifiers: {}, keys: [] },
+    seed: f.get('seed').trim(),
   };
   $('#newSubmit').disabled = true;
   try {

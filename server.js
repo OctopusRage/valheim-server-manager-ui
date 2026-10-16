@@ -11,7 +11,7 @@ import * as tailscale from './lib/tailscale.js';
 import * as apikeys from './lib/apikeys.js';
 import * as modpack from './lib/modpack.js';
 import { sharePage } from './lib/sharepage.js';
-import { worldInfo } from './lib/worldinfo.js';
+import { worldInfo, writeSeededWorld, SEED_RE } from './lib/worldinfo.js';
 import { ENV_CATALOG, WORLD_PRESETS, WORLD_MODIFIERS, WORLD_KEYS } from './lib/envcatalog.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -80,7 +80,7 @@ function publicView(s, st, statsById = {}, seed = null) {
     busy: jobs.get(s.id) || null,
     lastError: lastError.get(s.id) || null,
     stats: statsById[s.id] || null,
-    seed: seed && { name: seed.seedName, value: seed.seed },
+    seed: seed && { name: seed.seedName, value: seed.seed, generated: seed.generated },
   };
 }
 
@@ -235,7 +235,10 @@ app.post('/api/servers', wrap(async (req, res) => {
     createdAt: new Date().toISOString(),
   };
   applyFields(server, { serverName: '', ...body }, servers);
+  const seed = String(body.seed || '').trim();
+  if (seed && !SEED_RE.test(seed)) throw fail(400, 'Seed must be 1–10 letters or digits');
   await store.save(server);
+  if (seed) await writeSeededWorld(path.join(store.configDir(id), 'worlds_local'), server.worldName, seed);
   if (body.start) {
     runJob(id, 'creating', async () => {
       await ensureContainer(server, null);
@@ -313,6 +316,17 @@ app.get('/api/servers/:id/logs', wrap(async (req, res) => {
   await load(req.params.id);
   const tail = Math.min(Number(req.query.tail) || 400, 5000);
   res.type('text/plain').send(await docker.logs(req.params.id, tail));
+}));
+
+// Pre-seed a world that hasn't been generated yet (no world files for worldName).
+app.put('/api/servers/:id/seed', wrap(async (req, res) => {
+  await withLock(req.params.id, async () => {
+    const s = await load(req.params.id);
+    const st = (await docker.statusAll())[s.id];
+    if (st?.state === 'running') throw fail(409, 'Stop the server first');
+    await writeSeededWorld(path.join(store.configDir(s.id), 'worlds_local'), s.worldName, String(req.body?.seed || '').trim());
+  });
+  res.json({ ok: true });
 }));
 
 // --- worlds ---
