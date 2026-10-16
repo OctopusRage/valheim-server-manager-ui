@@ -350,89 +350,28 @@ curl -X POST -H "X-API-Key: $VHM_KEY" "${hookUrl(s.id, 'reload')}?wait=1"`)}</pr
   $('#delPurge').addEventListener('click', () => del(true));
 }
 
-// --- world modifiers (shared by the World tab and the New dialog) ----------
-
-// Same layout as the in-game "World Modifiers" screen: preset buttons,
-// sliders and toggles. Returns HTML; wire it up with bindWorldMods().
-function worldModsHTML(w) {
-  const { worldPresetLabels, worldSliders, worldKeyLabels } = state.meta;
-  w = w || {};
-  const preset = w.preset && w.preset !== 'normal' ? w.preset : '';
-  return `
-    <div class="wm">
-      <input type="hidden" name="preset" value="${esc(preset)}">
-      <div class="wm-title">Presets</div>
-      <div class="wm-presets">
-        ${Object.entries(worldPresetLabels).map(([k, label]) =>
-          `<button type="button" class="btn wm-preset${preset === k ? ' active' : ''}" data-preset="${k}">${label}</button>`).join('')}
-      </div>
-      <div class="wm-reset"><button type="button" class="btn" data-reset>Reset to normal</button></div>
-      <div class="wm-title">Customize</div>
-      <div class="wm-sliders">
-        ${worldSliders.map((m) => {
-          const i = Math.max(0, m.steps.findIndex(([v]) => v === (w.modifiers?.[m.key] || null)));
-          return `<label class="wm-slider">${m.label}
-            <input type="range" min="0" max="${m.steps.length - 1}" step="1" value="${i}" data-mod="${m.key}">
-            <output>${m.steps[i][1]}</output></label>`;
-        }).join('')}
-      </div>
-      <div class="checks wm-keys">
-        ${Object.entries(worldKeyLabels).map(([k, label]) =>
-          `<label><input type="checkbox" data-key="${k}" ${w.keys?.includes(k) ? 'checked' : ''}> ${label}</label>`).join('')}
-      </div>
-      <p class="hint wm-note"${preset ? '' : ' hidden'}>Sliders left on <b>Normal</b> keep the preset's value. Moving one overrides the preset for that setting; ticking a toggle adds it on top.</p>
-    </div>`;
-}
-
-function bindWorldMods(root, onChange = () => {}) {
-  const sliders = state.meta.worldSliders;
-  const presetInput = root.querySelector('input[name="preset"]');
-  const sync = () => {
-    root.querySelectorAll('.wm-preset').forEach((b) => b.classList.toggle('active', b.dataset.preset === presetInput.value));
-    root.querySelector('.wm-note').hidden = !presetInput.value;
-    root.querySelectorAll('input[data-mod]').forEach((r) => {
-      const m = sliders.find((x) => x.key === r.dataset.mod);
-      r.nextElementSibling.textContent = m.steps[r.value][1];
-      r.classList.toggle('changed', m.steps[r.value][0] !== null);
-    });
-    onChange();
-  };
-  root.querySelectorAll('.wm-preset').forEach((b) => b.addEventListener('click', () => {
-    presetInput.value = presetInput.value === b.dataset.preset ? '' : b.dataset.preset;
-    sync();
-  }));
-  root.querySelector('[data-reset]').addEventListener('click', () => {
-    presetInput.value = '';
-    root.querySelectorAll('input[data-mod]').forEach((r) => {
-      r.value = sliders.find((x) => x.key === r.dataset.mod).steps.findIndex(([v]) => v === null);
-    });
-    root.querySelectorAll('input[data-key]').forEach((c) => { c.checked = false; });
-    sync();
-  });
-  root.querySelectorAll('input[data-mod], input[data-key]').forEach((el) => el.addEventListener('input', sync));
-  sync();
-}
-
-function readWorldMods(root) {
-  const modifiers = {};
-  root.querySelectorAll('input[data-mod]').forEach((r) => {
-    const v = state.meta.worldSliders.find((x) => x.key === r.dataset.mod).steps[r.value][0];
-    if (v) modifiers[r.dataset.mod] = v;
-  });
-  return {
-    preset: root.querySelector('input[name="preset"]').value,
-    modifiers,
-    keys: [...root.querySelectorAll('input[data-key]:checked')].map((c) => c.dataset.key),
-  };
-}
-
 // --- world tab -------------------------------------------------------------
 
 async function tabWorld(s, body) {
+  const { worldPresets, worldModifiers, worldKeys } = state.meta;
+  const w = s.world || { preset: '', modifiers: {}, keys: [] };
   body.innerHTML = `
     <form class="card form" id="worldForm">
-      <h3>World modifiers <small>— same options as the in-game screen; applied on next start</small></h3>
-      ${worldModsHTML(s.world)}
+      <h3>World modifiers <small>— sent as server arguments, apply on next start</small></h3>
+      <div class="grid2">
+        <label>Preset
+          <select name="preset"><option value="">Default (normal)</option>
+          ${worldPresets.map((p) => `<option ${w.preset === p ? 'selected' : ''}>${p}</option>`).join('')}</select>
+        </label>
+        ${Object.entries(worldModifiers).map(([k, vals]) => `
+          <label>${k}
+            <select name="mod_${k}"><option value="">Default</option>
+            ${vals.map((v) => `<option ${w.modifiers?.[k] === v ? 'selected' : ''}>${v}</option>`).join('')}</select>
+          </label>`).join('')}
+      </div>
+      <div class="checks">
+        ${worldKeys.map((k) => `<label><input type="checkbox" name="key_${k}" ${w.keys?.includes(k) ? 'checked' : ''}> ${k}</label>`).join('')}
+      </div>
       <label style="margin-top:10px">Extra server arguments <input name="extraArgs" value="${esc(s.extraArgs || '')}" placeholder="e.g. -saveinterval 600 -backups 4"></label>
       <p class="hint">Resulting <code>SERVER_ARGS</code>:</p>
       <div class="preview" id="argsPreview">${esc(s.serverArgs) || '(none)'}</div>
@@ -455,8 +394,18 @@ async function tabWorld(s, body) {
     </div>`;
 
   const form = $('#worldForm');
-  const collect = () => ({ world: readWorldMods(form), extraArgs: new FormData(form).get('extraArgs') });
-  const preview = () => {
+  const collect = () => {
+    const f = new FormData(form);
+    return {
+      world: {
+        preset: f.get('preset'),
+        modifiers: Object.fromEntries(Object.keys(worldModifiers).map((k) => [k, f.get(`mod_${k}`)]).filter(([, v]) => v)),
+        keys: worldKeys.filter((k) => f.has(`key_${k}`)),
+      },
+      extraArgs: f.get('extraArgs'),
+    };
+  };
+  form.addEventListener('input', () => {
     const { world, extraArgs } = collect();
     const a = [];
     if (world.preset) a.push('-preset', world.preset);
@@ -464,9 +413,7 @@ async function tabWorld(s, body) {
     for (const k of world.keys) a.push('-setkey', k);
     if (extraArgs.trim()) a.push(extraArgs.trim());
     $('#argsPreview').textContent = a.join(' ') || '(none)';
-  };
-  bindWorldMods(form, preview);
-  form.addEventListener('input', preview);
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     try { await api('PUT', `/api/servers/${s.id}`, collect()); await savedAndReload('World settings saved'); }
@@ -739,8 +686,7 @@ $('#newBtn').addEventListener('click', async () => {
   const f = $('#newForm');
   f.reset();
   f.port.value = state.meta.suggestedPort;
-  $('#newWorldMods').innerHTML = worldModsHTML(null);
-  bindWorldMods($('#newWorldMods'));
+  $('#newPreset').innerHTML = `<option value="">Default (normal)</option>${state.meta.worldPresets.map((p) => `<option>${p}</option>`).join('')}`;
   $('#newError').textContent = '';
   $('#newDialog').showModal();
 });
@@ -753,7 +699,7 @@ $('#newForm').addEventListener('submit', async (e) => {
     serverName: f.get('serverName'), worldName: f.get('worldName'), password: f.get('password'),
     port: Number(f.get('port')), modFramework: f.get('modFramework'),
     public: f.has('public'), crossplay: f.has('crossplay'), start: f.has('start'),
-    world: readWorldMods($('#newWorldMods')),
+    world: { preset: f.get('preset'), modifiers: {}, keys: [] },
   };
   $('#newSubmit').disabled = true;
   try {

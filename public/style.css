@@ -154,23 +154,3 @@ dialog.wide { width: min(860px, 96vw); }
 pre.snippet { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; margin: 6px 0 0; white-space: pre; }
 .hooks td:first-child { white-space: nowrap; width: 1%; }
 .hooks code { word-break: break-all; }
-
-/* World modifiers — mirrors the in-game screen */
-.wm { max-width: 640px; }
-.wm-title { text-align: center; font-weight: 600; margin: 14px 0 8px; }
-.wm-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.wm-preset.active { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.wm-reset { display: flex; justify-content: center; margin-top: 10px; }
-.wm-sliders { display: grid; gap: 10px; }
-.wm-slider { display: grid !important; grid-template-columns: 130px 1fr 90px; align-items: center; gap: 12px; color: var(--text); }
-.wm-slider input[type=range] { width: 100%; accent-color: var(--muted); }
-.wm-slider input[type=range].changed { accent-color: var(--accent); }
-.wm-slider output { font-variant-numeric: tabular-nums; }
-.wm-keys { justify-content: flex-start; }
-.wm-details { margin-top: 12px; }
-.wm-details summary { cursor: pointer; font-weight: 600; }
-@media (max-width: 520px) {
-  .wm-presets { grid-template-columns: repeat(2, 1fr); }
-  .wm-slider { grid-template-columns: 1fr 80px; }
-  .wm-slider input[type=range] { grid-column: 1 / -1; grid-row: 2; }
-}
