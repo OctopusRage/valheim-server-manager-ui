@@ -9,6 +9,8 @@ import * as mods from './lib/mods.js';
 import * as auth from './lib/auth.js';
 import * as tailscale from './lib/tailscale.js';
 import * as apikeys from './lib/apikeys.js';
+import * as modpack from './lib/modpack.js';
+import { sharePage } from './lib/sharepage.js';
 import { ENV_CATALOG, WORLD_PRESETS, WORLD_MODIFIERS, WORLD_KEYS } from './lib/envcatalog.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
@@ -431,6 +433,43 @@ app.put('/api/servers/:id/configs/:name', express.text({ type: '*/*', limit: '4m
 }));
 
 // --- API keys (logged-in only) ---
+// --- mod packs (so players can match the server's mods) ----------------------
+const PACK_FILES = { 'profile.r2z': 'buildProfile', 'mods.zip': 'buildZip' };
+async function sendPack(res, s, file, configs) {
+  const buf = await modpack[PACK_FILES[file]](s, { configs });
+  const base = modpack.fileBase(s);
+  res.attachment(file === 'mods.zip' ? `${base}-mods.zip` : `${base}.r2z`);
+  res.type('application/zip').send(buf);
+}
+
+app.get('/api/servers/:id/modpack', wrap(async (req, res) => {
+  const s = await load(req.params.id);
+  res.json({ ...modpack.summary(s), share: s.share || null });
+}));
+
+app.get('/api/servers/:id/modpack/:file(profile.r2z|mods.zip)', wrap(async (req, res) => {
+  await sendPack(res, await load(req.params.id), req.params.file, req.query.configs === '1');
+}));
+
+// body: { enabled, configs, regenerate }
+app.put('/api/servers/:id/share', wrap(async (req, res) => {
+  const share = await withLock(req.params.id, async () => {
+    const s = await load(req.params.id);
+    const b = req.body || {};
+    if (b.enabled === false) delete s.share;
+    else {
+      s.share = {
+        token: !s.share || b.regenerate ? modpack.newToken() : s.share.token,
+        configs: b.configs !== undefined ? Boolean(b.configs) : Boolean(s.share?.configs),
+        createdAt: !s.share || b.regenerate ? new Date().toISOString() : s.share.createdAt,
+      };
+    }
+    await store.save(s);
+    return s.share || null;
+  });
+  res.json({ share });
+}));
+
 app.get('/api/keys', wrap(async (req, res) => res.json(await apikeys.list())));
 app.post('/api/keys', wrap(async (req, res) => res.status(201).json(await apikeys.create(req.body || {}))));
 app.delete('/api/keys/:id', wrap(async (req, res) => { await apikeys.revoke(req.params.id); res.json({ ok: true }); }));
@@ -483,6 +522,23 @@ app.all('/hook/:id/:action', express.json({ limit: '1kb' }), wrap(async (req, re
     return res.status(error ? 500 : 200).json({ ok: !error, action, error, ...(await describe()) });
   }
   res.status(202).json({ ok: true, action, ...(await describe()) });
+}));
+
+// --- public share links (no login; the token is the secret) ------------------
+async function findShared(token) {
+  for (const s of await store.list()) if (s.share && modpack.tokenMatches(s.share.token, token)) return s;
+  throw fail(404, 'This share link is invalid or was turned off');
+}
+
+app.get('/share/:token', wrap(async (req, res) => {
+  let s;
+  try { s = await findShared(req.params.token); } catch (e) { return res.status(404).type('html').send(sharePage(null)); }
+  res.set('Referrer-Policy', 'no-referrer').type('html').send(sharePage(s, modpack.summary(s)));
+}));
+
+app.get('/share/:token/:file(profile.r2z|mods.zip)', wrap(async (req, res) => {
+  const s = await findShared(req.params.token);
+  await sendPack(res, s, req.params.file, Boolean(s.share.configs));
 }));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));

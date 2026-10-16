@@ -124,3 +124,16 @@ fresh install.
 
 Don't use **Tailscale Funnel** for the manager. Funnel puts it on the public
 internet. Funnel also can't carry the game's UDP traffic.
+
+## 6. Mod share links for friends
+
+A server's **Mods → Share with players → Create share link** gives a page
+(`/share/<token>`) where players download the server's mods without logging in.
+The page lives on the manager, so friends must be able to reach it:
+
+- With `tailscale serve` on (section 5A), send them
+  `https://mypc.tailXXXX.ts.net/share/<token>`. If you use the ACL from section 4,
+  also allow friends `valheim-host:443`. That port shows them the manager's login
+  page as well, which stays password-protected.
+- Or skip the link: click **Download r2modman / Gale profile** or **Download mods
+  zip** and send the file over Discord or similar.

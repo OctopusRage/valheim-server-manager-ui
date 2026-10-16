@@ -350,6 +350,65 @@ curl -X POST -H "X-API-Key: $VHM_KEY" "${hookUrl(s.id, 'reload')}?wait=1"`)}</pr
   $('#delPurge').addEventListener('click', () => del(true));
 }
 
+// --- sharing mods with players ---------------------------------------------
+
+function shareUrl(token) {
+  return `${location.origin}/share/${token}`;
+}
+
+async function renderShare(s) {
+  const card = $('#shareCard');
+  if (!card) return;
+  const p = await api('GET', `/api/servers/${s.id}/modpack`);
+  const sh = p.share;
+  const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+  const dns = state.meta?.tailscale?.dnsName;
+  const profileOk = s.modFramework === 'bepinex' && !p.manual.length;
+  card.innerHTML = `
+    <h3>Share with players <small>— so their game has the same mods</small></h3>
+    ${p.mods.length ? '' : '<p class="hint">No mods installed yet — players can join with the normal game.</p>'}
+    <div class="row">
+      ${profileOk ? `<a class="btn small" data-pack="profile.r2z">Download r2modman / Gale profile</a>` : ''}
+      <a class="btn small" data-pack="mods.zip">Download mods zip</a>
+      <label class="inline"><input type="checkbox" id="packConfigs"> include mod config files</label>
+    </div>
+    <p class="hint">${profileOk ? 'The <b>profile</b> (.r2z) is tiny: r2modman or Gale downloads the exact versions from Thunderstore. ' : ''}The <b>zip</b> has BepInEx plus every plugin; players extract it into their Valheim folder.${p.manual.length ? ` Mods uploaded by hand (${p.manual.map(esc).join(', ')}) are only in the zip.` : ''}</p>
+    <hr>
+    ${sh ? `
+      <p class="hint">Anyone with this link can see the mod list and download the pack — no login.</p>
+      <div class="secret"><code>${esc(shareUrl(sh.token))}</code>
+        <button type="button" class="btn small primary" data-copy="${esc(shareUrl(sh.token))}">Copy</button>
+        <a class="btn small" href="${esc(shareUrl(sh.token))}" target="_blank" rel="noopener">Open</a></div>
+      ${loopback ? `<p class="hint">⚠ This link uses <code>${esc(location.host)}</code>, which only works on this PC. Send friends the same path on an address they can reach${dns ? `, e.g. <code>https://${esc(dns)}/share/${esc(sh.token)}</code> with <code>tailscale serve</code> on` : ''} — see docs/TAILSCALE.md.</p>` : ''}
+      <div class="row" style="margin-top:8px">
+        <label class="inline"><input type="checkbox" id="shareConfigs" ${sh.configs ? 'checked' : ''}> include mod config files in the shared pack</label>
+        <button type="button" class="btn small" id="shareRegen">New link</button>
+        <button type="button" class="btn small danger" id="shareOff">Turn off link</button>
+      </div>` : `
+      <div class="row"><button type="button" class="btn primary small" id="shareOn">Create share link</button></div>
+      <p class="hint">A public page with the mod list and download buttons, for players who can reach this manager. Or just download a file above and send it.</p>`}
+    <p class="hint">Config files can hold server-only settings (admin lists, webhook URLs). Only include them if that's fine to share.</p>`;
+
+  card.querySelectorAll('[data-pack]').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    location.href = `/api/servers/${s.id}/modpack/${a.dataset.pack}${$('#packConfigs').checked ? '?configs=1' : ''}`;
+  }));
+  const put = async (body, msg) => {
+    try { await api('PUT', `/api/servers/${s.id}/share`, body); toast(msg, 'ok'); await renderShare(s); }
+    catch (err) { toast(err.message, 'err'); }
+  };
+  $('#shareOn')?.addEventListener('click', () => put({ enabled: true }, 'Share link created'));
+  $('#shareConfigs')?.addEventListener('change', (e) => put({ configs: e.target.checked }, e.target.checked ? 'Shared pack now includes configs' : 'Shared pack no longer includes configs'));
+  $('#shareRegen')?.addEventListener('click', async () => {
+    if (!await confirmBox('Make a new link?', 'The old link stops working.', 'New link')) return;
+    put({ regenerate: true }, 'New link created');
+  });
+  $('#shareOff')?.addEventListener('click', async () => {
+    if (!await confirmBox('Turn off the share link?', 'The link stops working. You can create a new one later.', 'Turn off')) return;
+    put({ enabled: false }, 'Share link turned off');
+  });
+}
+
 // --- world tab -------------------------------------------------------------
 
 async function tabWorld(s, body) {
@@ -469,6 +528,7 @@ async function tabMods(s, body) {
         <button class="btn small" id="checkUpdates">Check for updates</button>
       </div>
     </div>
+    <div class="card" id="shareCard"><p class="hint">Loading…</p></div>
     <div class="card">
       <h3>Add from Thunderstore</h3>
       <form class="row" id="searchForm">
@@ -507,6 +567,7 @@ async function tabMods(s, body) {
     return mods;
   };
   let installed = await loadInstalled().catch((e) => { toast(e.message, 'err'); return {}; });
+  renderShare(s).catch((e) => { $('#shareCard').innerHTML = `<p class="error">${esc(e.message)}</p>`; });
 
   $('#installed').addEventListener('click', async (e) => {
     const rm = e.target.closest('[data-remove]');

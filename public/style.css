@@ -154,3 +154,9 @@ dialog.wide { width: min(860px, 96vw); }
 pre.snippet { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow-x: auto; margin: 6px 0 0; white-space: pre; }
 .hooks td:first-child { white-space: nowrap; width: 1%; }
 .hooks code { word-break: break-all; }
+
+/* share card */
+label.inline { display: inline-flex; flex-direction: row; align-items: center; gap: 7px; color: var(--text); font-size: 13.5px; }
+.card hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+.secret .btn { flex: none; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }

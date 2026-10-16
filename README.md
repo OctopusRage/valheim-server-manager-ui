@@ -21,6 +21,13 @@ Env: `PORT` (8790), `HOST` (127.0.0.1), `DATA_DIR` (./data), `VALHEIM_IMAGE`, `V
 **Hook URLs:** to start, stop/shutdown, restart, reload or get status with a secret key (no login),
 use `/hook/<server>/<action>`. Create keys under **API keys** in the UI. See [docs/API.md](docs/API.md).
 
+**Matching mods for players:** in a server's **Mods** tab, under **Share with players**, download
+an r2modman/Gale profile (`.r2z`, the mod manager fetches the exact versions) or a zip with BepInEx
+and every plugin to extract into the Valheim folder. **Create share link** gives a public page
+(`/share/<token>`, no login) with the mod list and both downloads. You can turn it off or replace it
+with a new link at any time. Mod config files are only included if you tick the box. They can hold
+server-only settings.
+
 Features: create/start/stop/restart/delete servers; edit settings and container env vars
 (changes apply on next start/restart, which re-creates the container and keeps the data);
 world preset/modifiers/setkeys; upload existing worlds; per-world BepInEx/ValheimPlus mods from
