@@ -44,7 +44,7 @@ Replace `HOME_TS` with this PC's Tailscale IP (`tailscale ip -4`) and `PORTS`
 with each world's range (port to port+2):
 
 ```sh
-HOME_TS=100.126.72.61
+HOME_TS=100.x.y.z       # this PC: `tailscale ip -4`
 PORTS="2456:2458 2466:2468"
 
 curl -fsSL https://tailscale.com/install.sh | sh
@@ -92,7 +92,7 @@ Notes:
 ## Option 3 — Port forwarding on your router
 
 If your ISP gives you a public IPv4 address (no CGNAT), forward UDP
-`port`–`port+2` for each world to this PC (192.168.88.x) and tick **List in
+`port`–`port+2` for each world to this PC's LAN IP and tick **List in
 public server browser**. Docker publishes the ports past ufw, so no firewall
 rule is needed here. Players join with your public IP, or find the server in
 the browser.

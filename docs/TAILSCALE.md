@@ -8,7 +8,7 @@ on every server as **Via Tailscale**.
 Find your address:
 
 ```
-tailscale ip -4          # e.g. 100.126.72.61
+tailscale ip -4          # e.g. 100.101.102.103
 tailscale status         # MagicDNS name, e.g. mypc.tailXXXX.ts.net
 ```
 
@@ -76,7 +76,7 @@ friends to the game ports, edit the
 ```jsonc
 {
   "hosts": {
-    "valheim-host": "100.126.72.61"   // this PC's Tailscale IP
+    "valheim-host": "100.x.y.z"   // this PC's Tailscale IP
   },
   "acls": [
     // you and your own devices: everything
