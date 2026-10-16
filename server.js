@@ -9,7 +9,7 @@ import * as mods from './lib/mods.js';
 import * as auth from './lib/auth.js';
 import * as tailscale from './lib/tailscale.js';
 import * as apikeys from './lib/apikeys.js';
-import { ENV_CATALOG, WORLD_PRESETS, WORLD_MODIFIERS, WORLD_KEYS } from './lib/envcatalog.js';
+import { ENV_CATALOG, WORLD_PRESETS, WORLD_MODIFIERS, WORLD_KEYS, WORLD_PRESET_LABELS, WORLD_SLIDERS, WORLD_KEY_LABELS } from './lib/envcatalog.js';
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number(process.env.PORT || 8790);
@@ -186,6 +186,9 @@ app.get('/api/meta', wrap(async (req, res) => {
     worldPresets: WORLD_PRESETS,
     worldModifiers: WORLD_MODIFIERS,
     worldKeys: WORLD_KEYS,
+    worldPresetLabels: WORLD_PRESET_LABELS,
+    worldSliders: WORLD_SLIDERS,
+    worldKeyLabels: WORLD_KEY_LABELS,
     suggestedPort: await suggestPort(servers),
     hostIps: ips,
     hostname: os.hostname(),
