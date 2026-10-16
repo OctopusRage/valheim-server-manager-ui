@@ -16,7 +16,7 @@ attempts per 15 minutes per IP.
 
 Env: `PORT` (8790), `HOST` (127.0.0.1), `DATA_DIR` (./data), `VALHEIM_IMAGE`, `VHM_PASSWORD`.
 
-**Playing with friends / remote access:** see [docs/TAILSCALE.md](docs/TAILSCALE.md).
+**Playing with friends / remote access:** see [docs/TAILSCALE.md](docs/TAILSCALE.md). **Letting anyone join** (crossplay join code, a VPS relay over Tailscale, or port forwarding): see [docs/PUBLIC.md](docs/PUBLIC.md), or the **Help** button in the UI.
 
 **Hook URLs:** to start, stop/shutdown, restart, reload or get status with a secret key (no login),
 use `/hook/<server>/<action>`. Create keys under **API keys** in the UI. See [docs/API.md](docs/API.md).

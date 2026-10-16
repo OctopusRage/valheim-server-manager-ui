@@ -929,3 +929,93 @@ async function start() {
   setInterval(refresh, 3000);
 }
 boot();
+
+// --- help: friends / public access -----------------------------------------
+
+function relayScript(tsIp) {
+  const ranges = state.servers.map((s) => `${s.port}:${s.port + 2}`).join(' ') || '2456:2458';
+  return `HOME_TS=${tsIp || '<this PC\'s Tailscale IP>'}
+PORTS="${ranges}"
+
+curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up                      # log in to the SAME tailnet as this PC
+
+echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-valheim-relay.conf
+sysctl --system >/dev/null
+
+WAN=$(ip route show default | awk '{print $5; exit}')
+rule() { t=$1; shift; iptables -t "$t" -C "$@" 2>/dev/null || iptables -t "$t" -A "$@"; }
+for r in $PORTS; do
+  rule nat    PREROUTING -i "$WAN" -p udp --dport "$r" -j DNAT --to-destination "$HOME_TS"
+  rule filter FORWARD    -i "$WAN" -o tailscale0 -p udp -d "$HOME_TS" --dport "$r" -j ACCEPT
+done
+rule nat    POSTROUTING -o tailscale0 -d "$HOME_TS" -j MASQUERADE
+rule filter FORWARD     -i tailscale0 -o "$WAN" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
+netfilter-persistent save         # keep the rules after reboot`;
+}
+
+function renderHelp(which) {
+  const ts = state.meta?.tailscale;
+  const worlds = state.servers.length
+    ? `<table class="keys"><thead><tr><th>World</th><th>UDP ports</th><th>Friends join with (Tailscale)</th><th>Public via VPS</th></tr></thead><tbody>
+      ${state.servers.map((s) => `<tr><td>${esc(s.serverName)}</td><td>${s.port}–${s.port + 2}</td>
+        <td>${ts?.ip ? `<code>${esc(tsAddress(s))}</code>` : '—'}</td>
+        <td><code>VPS_IP${s.port === 2456 ? '' : `:${s.port}`}</code></td></tr>`).join('')}</tbody></table>`
+    : '<p class="hint">No worlds yet.</p>';
+  $('#helpBody').innerHTML = which === 'friends' ? `
+    <p>Friends install <a href="https://tailscale.com/download" target="_blank" rel="noopener">Tailscale</a> (free) and get access to this PC. Nothing is exposed to the internet.</p>
+    <ol class="steps">
+      <li>Open the <a href="https://login.tailscale.com/admin/machines" target="_blank" rel="noopener">Tailscale admin console → Machines</a>, click <b>⋯</b> next to this PC${ts?.dnsName ? ` (<code>${esc(ts.dnsName.split('.')[0])}</code>)` : ''}, then <b>Share…</b>, and send the invite link.</li>
+      <li>Your friend logs in to Tailscale, accepts the invite, and keeps Tailscale connected while playing.</li>
+      <li>In Valheim: <b>Join Game → Join IP</b>, enter the address below, then the world password.</li>
+    </ol>
+    ${ts?.ip ? '' : '<p class="error">Tailscale is not running on this PC. Install it and run <code>tailscale up</code> first.</p>'}
+    ${worlds}
+    <p class="hint">Mods: send friends the share link from the server's <b>Mods</b> tab. More (ACLs, lag, opening this manager from other devices): <code>docs/TAILSCALE.md</code>.</p>` : `
+    <div class="banner warn"><span><b>Tailscale Funnel can't do this.</b> Funnel only carries TCP (HTTPS), and Valheim uses UDP. Don't point Funnel at this manager either: it would put the admin UI on the internet.</span></div>
+
+    <h3>Option 1 — Crossplay join code <small>— easiest, nothing to set up</small></h3>
+    <ol class="steps">
+      <li>Open the server's <b>Settings</b>, tick <b>Crossplay</b>, save, then <b>Restart</b>.</li>
+      <li>In <b>Logs</b>, find <code>Session "…" registered with join code 123456</code>.</li>
+      <li>Players go to <b>Join Game → Add server</b>, enter the code, then the password. Steam, Xbox and Game Pass players can all join.</li>
+    </ol>
+    <p class="hint">The code changes on every restart. Traffic goes through Valheim's relay, so latency is a bit higher. Xbox and Game Pass players can't use BepInEx mods.</p>
+
+    <h3>Option 2 — Your own public IP: a VPS relay over Tailscale</h3>
+    <p>Rent a small VPS with a public IPv4 (the cheapest plan is enough), then run this as root on it (Debian/Ubuntu). It forwards each world's UDP ports through Tailscale to this PC. Your IP and ports are already filled in:</p>
+    <div class="codebox"><pre><code id="relayScript">${esc(relayScript(ts?.ip))}</code></pre>
+      <button type="button" class="btn small primary" data-copy-el="relayScript">Copy</button></div>
+    <ol class="steps">
+      <li>In the VPS provider's firewall or security group, allow <b>inbound UDP</b> on those ports. If the VPS uses ufw, also run <code>ufw route allow proto udp to any port 2456:2458</code> for each range.</li>
+      <li>If you restricted friends with a Tailscale ACL, allow the VPS to reach this PC's game ports too.</li>
+      <li>Players: <b>Join Game → Join IP</b> → <code>VPS_IP:port</code>.</li>
+      <li>Leave <b>List in public server browser</b> off. It would advertise your home IP, not the VPS.</li>
+    </ol>
+    ${worlds}
+
+    <h3>Option 3 — Router port forwarding</h3>
+    <p class="hint">Only if your ISP gives you a real public IPv4 address (no CGNAT). Forward UDP <i>port</i>–<i>port+2</i> for each world to this PC, then tick <b>List in public server browser</b>.</p>
+    <p class="hint">Full guide: <code>docs/PUBLIC.md</code>.</p>`;
+}
+
+$('#helpBtn').addEventListener('click', () => {
+  document.querySelectorAll('[data-help]').forEach((t) => t.classList.toggle('active', t.dataset.help === 'friends'));
+  renderHelp('friends');
+  $('#helpDialog').showModal();
+});
+$('#helpClose').addEventListener('click', () => $('#helpDialog').close());
+$('#helpDialog').addEventListener('click', async (e) => {
+  const t = e.target.closest('[data-help]');
+  if (t) {
+    document.querySelectorAll('[data-help]').forEach((x) => x.classList.toggle('active', x === t));
+    renderHelp(t.dataset.help);
+  }
+  const c = e.target.closest('[data-copy-el]');
+  if (c) {
+    await navigator.clipboard?.writeText($(`#${c.dataset.copyEl}`).textContent).catch(() => {});
+    toast('Copied');
+  }
+});

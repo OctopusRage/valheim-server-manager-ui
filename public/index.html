@@ -13,6 +13,7 @@
     <div class="topbar-right">
       <div class="topbar-meta" id="meta"></div>
       <div class="row" id="userMenu" hidden>
+        <button class="btn small" id="helpBtn">Help</button>
         <button class="btn small" id="keysBtn">API keys</button>
         <button class="btn small" id="pwBtn">Change password</button>
         <button class="btn small" id="logoutBtn">Log out</button>
@@ -106,6 +107,18 @@
 
       <div id="keyCreated" class="card" hidden></div>
       <div class="actions"><button class="btn" id="keysClose" type="button">Close</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="helpDialog" class="wide">
+    <div class="form help">
+      <h2>Help — let people join</h2>
+      <div class="help-tabs" role="tablist">
+        <button type="button" class="tab active" data-help="friends">Friends (Tailscale)</button>
+        <button type="button" class="tab" data-help="public">Public (anyone)</button>
+      </div>
+      <div id="helpBody"></div>
+      <div class="actions"><button class="btn" id="helpClose" type="button">Close</button></div>
     </div>
   </dialog>
 

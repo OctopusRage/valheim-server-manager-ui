@@ -160,3 +160,16 @@ label.inline { display: inline-flex; flex-direction: row; align-items: center; g
 .card hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
 .secret .btn { flex: none; }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* help dialog */
+.help-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.help h3 { margin: 20px 0 6px; font-size: 15px; }
+.help h3 small { color: var(--muted); font-weight: 400; }
+.help p, .help li { font-size: 14px; line-height: 1.55; }
+.help .steps { padding-left: 20px; margin: 6px 0; }
+.help .steps li { margin: 4px 0; }
+.help table { margin: 10px 0; font-size: 13.5px; }
+.help .banner { margin: 0 0 6px; }
+.codebox { position: relative; }
+.codebox pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; margin: 8px 0; }
+.codebox .btn { position: absolute; top: 8px; right: 8px; }
